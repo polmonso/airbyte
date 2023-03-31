@@ -1,0 +1,19 @@
+documentationUrl: https://docsurl.com
+connectionSpecification:
+  $schema: http://json-schema.org/draft-07/schema#
+  title: Datadis Spec
+  type: object
+  required:
+    - username
+    - password
+  properties:
+    username:
+      type: string
+      description: datadis username
+    password:
+      type: string
+      description: datadis username password
+      airbyte_secret: true
+    cups:
+      type: string
+      description: datadis cups to query about
