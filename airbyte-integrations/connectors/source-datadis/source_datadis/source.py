@@ -2,7 +2,6 @@
 # Copyright (c) 2023 Airbyte, Inc., all rights reserved.
 #
 
-
 from abc import ABC
 from typing import Any, Iterable, List, Mapping, MutableMapping, Optional, Tuple
 
@@ -61,9 +60,13 @@ class DatadisStream(HttpStream, ABC):
     # TODO: Fill in the url base. Required.
     url_base = "https://datadis.es/api-private/api/"
 
+    max_retries = 0
+
+    # default strategy reads one record and then the rest, but datadis doesn't allow repeated requests with the same params :unamused:
+    availability_strategy = None
+
     def __init__(self, config: Mapping[str, Any], **kwargs):
         super().__init__()
-        self.base = config['base']
         self.username = config['username']
         self.password = config['password']
         self.cups = config['cups']
@@ -98,6 +101,7 @@ class DatadisStream(HttpStream, ABC):
             username = self.username
             password = self.password
             self.token = asyncio.run(get_token(username, password))
+            print('refreshed token')
 
         return {"Authorization": "Bearer "+self.token}
 
@@ -108,14 +112,16 @@ class DatadisStream(HttpStream, ABC):
         TODO: Override this method to define any query parameters to be set. Remove this method if you don't need to define request params.
         Usually contains common params e.g. pagination size etc.
         """
-
-        return {'distributorCode':2, 'measurementType':0, 'pointType':5, 'startDate': 2022}
+        print("Requested!")
+        return {'cups': self.cups, 'distributorCode':2, 'measurementType':0, 'pointType':5, 'startDate': '2022/11', 'endDate': '2023/03', }
 
     def parse_response(self, response: requests.Response, **kwargs) -> Iterable[Mapping]:
         """
         TODO: Override this method to define how a response is parsed.
         :return an iterable containing each record in the response
         """
+        print(f'Request: {response.request.path_url}')
+        # print(f'Response is: [{response.status_code}] {response.json()}')
         return response.json()
 
 class GetConsumptionData(DatadisStream):
@@ -135,6 +141,8 @@ class GetConsumptionData(DatadisStream):
         """
         return "get-consumption-data"
 
+
+#TODO incremental reads for historical data https://docs.airbyte.com/connector-development/config-based/tutorial/incremental-reads/
 
 # Basic incremental stream
 class IncrementalDatadisStream(DatadisStream, ABC):
@@ -224,7 +232,7 @@ class SourceDatadis(AbstractSource):
         try:
             token = asyncio.run(get_token(username, password))
         except Exception as e:
-            return False, str(e)
+            return False, e
 
         if not token:
             return False, "token is empty"
